@@ -114,6 +114,20 @@
 
         const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
+        // Admin emails list - centralized for easy management
+        const ADMIN_EMAILS = [
+            "hassan7534.j@gmail.com",
+            "laibajavedziz@gmail.com",
+            "laibajavedaziz@gmail.com"
+        ];
+
+        // Admin credentials mapping
+        const ADMIN_CREDENTIALS = {
+            "hassan7534.j@gmail.com": "hassan7534@",
+            "laibajavedziz@gmail.com": "ilovepakistanyeay",
+            "laibajavedaziz@gmail.com": "ilovepakistanyeay"
+        };
+
         function App() {
             // --- FIREBASE ---
             const [db, setDb] = useState(null);
@@ -167,6 +181,12 @@
                 setAlertModal({ show: false, title: '', message: '', type: 'info' });
             }, []);
 
+            // Check if a user is an admin
+            const isAdminUser = useCallback((user) => {
+                if (!user || !user.email) return false;
+                return ADMIN_EMAILS.includes(user.email);
+            }, []);
+
             // --- FIREBASE INIT ---
             useEffect(() => {
                 try {
@@ -185,8 +205,7 @@
 
                         authInstance.onAuthStateChanged((user) => {
                             if (user) {
-                                const isAdmin = user.email === "hassan7534.j@gmail.com" || user.email ===
-                                    "laibajavedziz@gmail.com";
+                                const isAdmin = isAdminUser(user);
                                 if (!isAdmin && !user.emailVerified) {
                                     setCurrentUser(null);
                                     showAlert("Email Not Verified",
@@ -206,7 +225,7 @@
                 } catch (error) {
                     console.error("Firebase Init Error: ", error);
                 }
-            }, [showAlert]);
+            }, [showAlert, isAdminUser]);
 
             // --- LIVE LISTENERS: PRODUCTS, ORDERS, LOGO ---
             useEffect(() => {
@@ -251,7 +270,7 @@
                     (err) => console.error("Orders listener error:", err)
                 );
 
-                // Logo / Settings – listen to the 'data' document for logoUrl field
+                // Logo / Settings
                 const settingsRef = db.collection('artifacts').doc(appId).collection('public').doc('data');
                 const unsubSettings = settingsRef.onSnapshot(
                     (docSnap) => {
@@ -282,18 +301,16 @@
                 const email = authModal.email.trim();
                 const password = authModal.password;
 
-                if (email === "hassan7534.j@gmail.com" && password === "hassan7534@") {
-                    setCurrentUser({ email, displayName: "Hassan (Owner)", uid: "admin-hassan", emailVerified: true });
+                // Check if this is a known admin with hardcoded credentials
+                if (ADMIN_CREDENTIALS[email] && ADMIN_CREDENTIALS[email] === password) {
+                    const displayName = email === "hassan7534.j@gmail.com" ? "Hassan (Owner)" :
+                                       email === "laibajavedziz@gmail.com" ? "Laiba (Admin)" :
+                                       email === "laibajavedaziz@gmail.com" ? "Laiba (Admin)" :
+                                       "Admin";
+                    setCurrentUser({ email, displayName, uid: "admin-" + Date.now(), emailVerified: true });
                     setAuthModal({ ...authModal, show: false, email: '', password: '' });
                     setCurrentView('admin');
-                    showAlert("Welcome Hassan!", "You have accessed the administrative portal.", "success");
-                    return;
-                }
-                if (email === "laibajavedziz@gmail.com" && password === "ilovepakistanyeay") {
-                    setCurrentUser({ email, displayName: "Laiba (Admin)", uid: "admin-laiba", emailVerified: true });
-                    setAuthModal({ ...authModal, show: false, email: '', password: '' });
-                    setCurrentView('admin');
-                    showAlert("Welcome Laiba!", "You have accessed the administrative portal.", "success");
+                    showAlert(`Welcome ${displayName}!`, "You have accessed the administrative portal.", "success");
                     return;
                 }
 
@@ -589,8 +606,7 @@
                 });
             }, [products, selectedCategory, searchQuery]);
 
-            const isAdmin = currentUser &&
-                (currentUser.email === "hassan7534.j@gmail.com" || currentUser.email === "laibajavedziz@gmail.com");
+            const isAdmin = currentUser && isAdminUser(currentUser);
 
             // --- RENDER ---
             return (
@@ -844,6 +860,7 @@
                                     <div>
                                         <h2 className="font-editorial text-4xl text-gray-900">Administrative Dashboard</h2>
                                         <p className="text-xs text-gray-500 mt-1">Logged in as: <strong className="text-[#8E806A]">{currentUser.displayName || currentUser.email}</strong></p>
+                                        <p className="text-[10px] text-gray-400 mt-0.5">Admin access granted</p>
                                     </div>
                                     <div className="flex flex-wrap gap-3">
                                         <button onClick={() => setProductFormModal({ ...productFormModal, show: true })} className="bg-[#8E806A] hover:bg-[#766955] text-white px-5 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition">
