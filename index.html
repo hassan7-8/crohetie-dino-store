@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>crochetie Dino - Handmade Store</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com">
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    <!-- Firebase SDK v10 Compat -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js">
+    </script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js">
+    </script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js">
+    </script>
+
+    <!-- React & Babel CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js">
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js">
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.21.4/babel.min.js">
+    </script>
+
+    <style>
+        .font-brand {
+            font-family: 'Alex Brush', cursive;
+        }
+        .font-editorial {
+            font-family: 'Cormorant Garamond', serif;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FAF7F2;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #FAF7F2;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #E6DFD5;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #D1C7B7;
+        }
+        .animate-fadeIn {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .logo-img {
+            max-height: 48px;
+            width: auto;
+            object-fit: contain;
+        }
+        @media (max-width: 640px) {
+            .logo-img {
+                max-height: 36px;
+            }
+        }
+    </style>
+</head>
+<body class="text-gray-800 antialiased min-h-screen flex flex-col">
+
+    <div id="root" class="flex-grow flex flex-col">
+        <div class="flex-grow flex flex-col items-center justify-center p-8 text-center">
+            <div class="animate-pulse space-y-6">
+                <h1 class="font-brand text-5xl text-gray-800">crochetie Dino</h1>
+                <p class="font-editorial italic text-xl text-gray-500">Curating handwoven warmth...</p>
+                <div class="w-16 h-[2px] bg-[#8E806A] mx-auto animate-bounce"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/babel">
+        const firebaseConfig = {
+            apiKey: "AIzaSyCtIpcH3mkUGalHLyQbq7mJYDn_5Vo6YXI",
+            authDomain: "crochet-dino.firebaseapp.com",
+            projectId: "crochet-dino",
+            storageBucket: "crochet-dino.firebasestorage.app",
+            messagingSenderId: "702656152106",
+            appId: "1:702656152106:web:3a89f21bf983f7a90af953",
+            measurementId: "G-M7GKBXN1RL"
+        };
+
+        const VERCEL_APP_ID = "crochet-by-dino-production";
+
+        const getActiveAppId = () => {
+            if (typeof __app_id !== 'undefined' && __app_id) return __app_id;
+            return VERCEL_APP_ID;
+        };
+
+        const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+        function App() {
+            // --- FIREBASE ---
+            const [db, setDb] = useState(null);
+            const [auth, setAuth] = useState(null);
+            const [currentUser, setCurrentUser] = useState(null);
+
+            // --- APP STATE ---
+            const [products, setProducts] = useState([]);
+            const [orders, setOrders] = useState([]);
+            const [cart, setCart] = useState([]);
+            const [currentView, setCurrentView] = useState('storefront');
+            const [selectedCategory, setSelectedCategory] = useState('all');
+            const [searchQuery, setSearchQuery] = useState('');
+            const [logoUrl, setLogoUrl] = useState('');
+
+            // --- MODALS ---
+            const [alertModal, setAlertModal] = useState({ show: false, title: '', message: '', type: 'info' });
+            const [authModal, setAuthModal] = useState({ show: false, email: '', password: '', isLogin: true });
+            const [checkoutModal, setCheckoutModal] = useState({
+                show: false,
+                name: '',
+                phone: '',
+                address: '',
+                city: 'Karachi',
+                notes: '',
+                verificationCode: '',
+                enteredCode: '',
+                isVerified: false,
+                isCodeSent: false
+            });
+            const [productFormModal, setProductFormModal] = useState({
+                show: false,
+                id: null,
+                title: '',
+                description: '',
+                price: '',
+                category: 'keychain',
+                image: ''
+            });
+            const [logoModal, setLogoModal] = useState({ show: false, url: '' });
+
+            // --- STATS ---
+            const [totalSales, setTotalSales] = useState(0);
+
+            // --- ALERT ---
+            const showAlert = useCallback((title, message, type = 'info') => {
+                setAlertModal({ show: true, title, message, type });
+            }, []);
+
+            const closeAlert = useCallback(() => {
+                setAlertModal({ show: false, title: '', message: '', type: 'info' });
+            }, []);
+
+            // --- FIREBASE INIT ---
+            useEffect(() => {
+                try {
+                    if (window.firebase) {
+                        let appInstance;
+                        if (window.firebase.apps.length === 0) {
+                            appInstance = window.firebase.initializeApp(firebaseConfig);
+                        } else {
+                            appInstance = window.firebase.app();
+                        }
+                        const dbInstance = window.firebase.firestore(appInstance);
+                        const authInstance = window.firebase.auth(appInstance);
+
+                        setDb(dbInstance);
+                        setAuth(authInstance);
+
+                        authInstance.onAuthStateChanged((user) => {
+                            if (user) {
+                                const isAdmin = user.email === "hassan7534.j@gmail.com" || user.email ===
+                                    "laibajavedziz@gmail.com";
+                                if (!isAdmin && !user.emailVerified) {
+                                    setCurrentUser(null);
+                                    showAlert("Email Not Verified",
+                                        "Please verify your email address before logging in. Check your inbox for the verification link.",
+                                        "error");
+                                    authInstance.signOut();
+                                    return;
+                                }
+                                setCurrentUser(user);
+                            } else {
+                                setCurrentUser(null);
+                            }
+                        });
+                    } else {
+                        console.warn("Firebase not loaded. Running in local memory mode.");
+                    }
+                } catch (error) {
+                    console.error("Firebase Init Error: ", error);
+                }
+            }, [showAlert]);
+
+            // --- LIVE LISTENERS: PRODUCTS, ORDERS, LOGO ---
+            useEffect(() => {
+                if (!db) return;
+                const appId = getActiveAppId();
+
+                // Products
+                const productsRef = db.collection('artifacts').doc(appId).collection('public').doc('data')
+                    .collection('products');
+                const unsubProducts = productsRef.onSnapshot(
+                    (snap) => {
+                        const list = [];
+                        snap.forEach((d) => {
+                            const data = d.data();
+                            if (data) list.push({ id: d.id, ...data });
+                        });
+                        setProducts(list);
+                    },
+                    (err) => console.error("Products listener error:", err)
+                );
+
+                // Orders
+                const ordersRef = db.collection('artifacts').doc(appId).collection('public').doc('data')
+                    .collection('orders');
+                const unsubOrders = ordersRef.onSnapshot(
+                    (snap) => {
+                        const list = [];
+                        let sales = 0;
+                        snap.forEach((d) => {
+                            const data = d.data();
+                            if (data) {
+                                const item = { id: d.id, ...data };
+                                list.push(item);
+                                if (item.status === 'delivered') {
+                                    sales += Number(item.total || 0);
+                                }
+                            }
+                        });
+                        setOrders(list);
+                        setTotalSales(sales);
+                    },
+                    (err) => console.error("Orders listener error:", err)
+                );
+
+                // Logo / Settings – listen to the 'data' document for logoUrl field
+                const settingsRef = db.collection('artifacts').doc(appId).collection('public').doc('data');
+                const unsubSettings = settingsRef.onSnapshot(
+                    (docSnap) => {
+                        if (docSnap.exists) {
+                            const data = docSnap.data();
+                            if (data && data.logoUrl) {
+                                setLogoUrl(data.logoUrl);
+                            } else {
+                                setLogoUrl('');
+                            }
+                        } else {
+                            setLogoUrl('');
+                        }
+                    },
+                    (err) => console.error("Settings listener error:", err)
+                );
+
+                return () => {
+                    unsubProducts();
+                    unsubOrders();
+                    unsubSettings();
+                };
+            }, [db]);
+
+            // --- AUTH HANDLERS ---
+            const handleAdminLogin = async (e) => {
+                e.preventDefault();
+                const email = authModal.email.trim();
+                const password = authModal.password;
+
+                if (email === "hassan7534.j@gmail.com" && password === "hassan7534@") {
+                    setCurrentUser({ email, displayName: "Hassan (Owner)", uid: "admin-hassan", emailVerified: true });
+                    setAuthModal({ ...authModal, show: false, email: '', password: '' });
+                    setCurrentView('admin');
+                    showAlert("Welcome Hassan!", "You have accessed the administrative portal.", "success");
+                    return;
+                }
+                if (email === "laibajavedziz@gmail.com" && password === "ilovepakistanyeay") {
+                    setCurrentUser({ email, displayName: "Laiba (Admin)", uid: "admin-laiba", emailVerified: true });
+                    setAuthModal({ ...authModal, show: false, email: '', password: '' });
+                    setCurrentView('admin');
+                    showAlert("Welcome Laiba!", "You have accessed the administrative portal.", "success");
+                    return;
+                }
+
+                if (auth) {
+                    try {
+                        if (authModal.isLogin) {
+                            const cred = await auth.signInWithEmailAndPassword(email, password);
+                            if (!cred.user.emailVerified) {
+                                await auth.signOut();
+                                showAlert("Email Not Verified",
+                                    "Please verify your email before logging in. Check your inbox.", "error");
+                                return;
+                            }
+                            setCurrentUser(cred.user);
+                        } else {
+                            const cred = await auth.createUserWithEmailAndPassword(email, password);
+                            await cred.user.sendEmailVerification();
+                            await auth.signOut();
+                            showAlert("Verification Email Sent",
+                                "A verification link has been sent to your email. Please verify before logging in.",
+                                "success");
+                            setAuthModal({ ...authModal, show: false, email: '', password: '' });
+                            return;
+                        }
+                        setAuthModal({ ...authModal, show: false, email: '', password: '' });
+                        showAlert("Account Accessed", "Logged in successfully.", "success");
+                    } catch (err) {
+                        showAlert("Authentication Error", err.message, "error");
+                    }
+                } else {
+                    showAlert("Local Mode", "Firebase is initializing. Please try again.", "info");
+                }
+            };
+
+            const handleGoogleSignIn = async () => {
+                if (auth) {
+                    try {
+                        const provider = new window.firebase.auth.GoogleAuthProvider();
+                        const cred = await auth.signInWithPopup(provider);
+                        if (!cred.user.emailVerified) {
+                            await auth.signOut();
+                            showAlert("Email Not Verified", "Please verify your email before logging in.", "error");
+                            return;
+                        }
+                        setAuthModal({ ...authModal, show: false });
+                        showAlert("Google Login Success", "Logged in successfully.", "success");
+                    } catch (err) {
+                        showAlert("Google Login Error", err.message, "error");
+                    }
+                } else {
+                    showAlert("Not Configured", "Google Login is not configured yet.", "info");
+                }
+            };
+
+            const handleLogout = () => {
+                if (auth) auth.signOut().catch(() => {});
+                setCurrentUser(null);
+                setCurrentView('storefront');
+                showAlert("Goodbye!", "Signed out successfully.", "info");
+            };
+
+            // --- CART ---
+            const addToCart = useCallback((product) => {
+                setCart((prev) => {
+                    const existing = prev.find((item) => item.id === product.id);
+                    if (existing) {
+                        return prev.map((item) =>
+                            item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+                        );
+                    }
+                    return [...prev, { ...product, quantity: 1, customNote: '' }];
+                });
+                showAlert("Added to Cart", `${product.title} has been added to your bag.`, "success");
+            }, [showAlert]);
+
+            const removeFromCart = useCallback((id) => {
+                setCart((prev) => prev.filter((item) => item.id !== id));
+            }, []);
+
+            const updateQuantity = useCallback((id, newQty) => {
+                if (newQty <= 0) {
+                    removeFromCart(id);
+                } else {
+                    setCart((prev) =>
+                        prev.map((item) => (item.id === id ? { ...item, quantity: newQty } : item))
+                    );
+                }
+            }, [removeFromCart]);
+
+            const updateCustomNote = useCallback((id, note) => {
+                setCart((prev) =>
+                    prev.map((item) => (item.id === id ? { ...item, customNote: note } : item))
+                );
+            }, []);
+
+            const getCartTotal = useMemo(() => {
+                return cart.reduce((acc, item) => acc + Number(item.price) * item.quantity, 0);
+            }, [cart]);
+
+            // --- CHECKOUT ---
+            const handleSendVerificationCode = () => {
+                if (!checkoutModal.phone.match(/^(03|0092|\+92)[0-9]{9,10}$/)) {
+                    showAlert("Invalid Phone Number", "Please provide a valid Pakistani contact number.", "error");
+                    return;
+                }
+                const code = Math.floor(1000 + Math.random() * 9000).toString();
+                setCheckoutModal((prev) => ({ ...prev, verificationCode: code, isCodeSent: true }));
+                showAlert("OTP Code Sent!", `Your verification code is: ${code}`, "success");
+            };
+
+            const handleVerifyAndSubmitOrder = async (e) => {
+                e.preventDefault();
+                if (checkoutModal.enteredCode !== checkoutModal.verificationCode) {
+                    showAlert("Verification Error", "The code you entered is incorrect.", "error");
+                    return;
+                }
+
+                const orderId = "DINO-PK-" + Math.floor(100000 + Math.random() * 900000);
+                const orderData = {
+                    id: orderId,
+                    name: checkoutModal.name,
+                    phone: checkoutModal.phone,
+                    address: checkoutModal.address,
+                    city: checkoutModal.city,
+                    notes: checkoutModal.notes,
+                    items: cart.map((item) => ({
+                        id: item.id,
+                        title: item.title,
+                        price: item.price,
+                        quantity: item.quantity,
+                        customNote: item.customNote || ''
+                    })),
+                    total: getCartTotal,
+                    status: 'pending',
+                    date: new Date().toLocaleDateString('en-PK', { year: 'numeric', month: 'long', day: 'numeric' }),
+                    time: new Date().toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })
+                };
+
+                try {
+                    if (db) {
+                        const appId = getActiveAppId();
+                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('orders')
+                            .doc(orderId).set(orderData);
+                    } else {
+                        setOrders((prev) => [...prev, orderData]);
+                    }
+                    setCart([]);
+                    setCheckoutModal({
+                        show: false,
+                        name: '',
+                        phone: '',
+                        address: '',
+                        city: 'Karachi',
+                        notes: '',
+                        verificationCode: '',
+                        enteredCode: '',
+                        isVerified: false,
+                        isCodeSent: false
+                    });
+                    showAlert("Order Placed Successfully!",
+                        `Thank you, ${orderData.name}! Order ID: ${orderId}. We'll craft your custom piece soon.`,
+                        "success");
+                } catch (err) {
+                    showAlert("Order Error", err.message, "error");
+                }
+            };
+
+            // --- PRODUCT CRUD ---
+            const handleSaveProduct = async (e) => {
+                e.preventDefault();
+                const cleanPrice = Number(productFormModal.price);
+                if (!productFormModal.title || isNaN(cleanPrice) || cleanPrice <= 0) {
+                    showAlert("Invalid Details", "Please provide a title and valid price.", "error");
+                    return;
+                }
+
+                const productId = productFormModal.id || "PROD-" + Date.now();
+                const productData = {
+                    id: productId,
+                    title: productFormModal.title,
+                    description: productFormModal.description || '',
+                    price: cleanPrice,
+                    category: productFormModal.category,
+                    image: productFormModal.image ||
+                        "https://images.unsplash.com/photo-1584992208738-3432be7bac4f?auto=format&fit=crop&w=600&q=80"
+                };
+
+                try {
+                    if (db) {
+                        const appId = getActiveAppId();
+                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('products')
+                            .doc(productId).set(productData);
+                    } else {
+                        setProducts((prev) => [...prev.filter((p) => p.id !== productId), productData]);
+                    }
+                    setProductFormModal({ show: false, id: null, title: '', description: '', price: '', category: 'keychain',
+                        image: '' });
+                    showAlert("Product Saved!", "Your catalog has been updated.", "success");
+                } catch (err) {
+                    showAlert("Save Error", err.message, "error");
+                }
+            };
+
+            const handleDeleteProduct = async (id) => {
+                try {
+                    if (db) {
+                        const appId = getActiveAppId();
+                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('products')
+                            .doc(id).delete();
+                    } else {
+                        setProducts((prev) => prev.filter((p) => p.id !== id));
+                    }
+                    showAlert("Deleted", "Product removed from catalog.", "info");
+                } catch (err) {
+                    showAlert("Deletion Error", err.message, "error");
+                }
+            };
+
+            // --- ORDER STATUS ---
+            const handleUpdateOrderStatus = async (orderId, currentStatus) => {
+                const stages = ['pending', 'processing', 'shipped', 'delivered'];
+                const nextIndex = stages.indexOf(currentStatus) + 1;
+                if (nextIndex >= stages.length) return;
+                const nextStatus = stages[nextIndex];
+
+                try {
+                    if (db) {
+                        const appId = getActiveAppId();
+                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('orders')
+                            .doc(orderId).update({ status: nextStatus });
+                    } else {
+                        setOrders((prev) =>
+                            prev.map((o) => (o.id === orderId ? { ...o, status: nextStatus } : o))
+                        );
+                    }
+                    showAlert("Status Advanced", `Order status: ${nextStatus.toUpperCase()}`, "success");
+                } catch (err) {
+                    showAlert("Update Error", err.message, "error");
+                }
+            };
+
+            // --- LOGO MANAGEMENT ---
+            const handleSaveLogo = async (e) => {
+                e.preventDefault();
+                const url = logoModal.url.trim();
+                if (!url) {
+                    showAlert("Invalid URL", "Please enter a valid image URL for your logo.", "error");
+                    return;
+                }
+                try {
+                    if (db) {
+                        const appId = getActiveAppId();
+                        await db.collection('artifacts').doc(appId).collection('public').doc('data').set({ logoUrl: url }, {
+                            merge: true
+                        });
+                        setLogoUrl(url);
+                        setLogoModal({ show: false, url: '' });
+                        showAlert("Logo Updated!", "Your brand logo has been updated successfully.", "success");
+                    } else {
+                        showAlert("Database Error", "Firebase is not available.", "error");
+                    }
+                } catch (err) {
+                    showAlert("Save Error", err.message, "error");
+                }
+            };
+
+            const handleRemoveLogo = async () => {
+                try {
+                    if (db) {
+                        const appId = getActiveAppId();
+                        await db.collection('artifacts').doc(appId).collection('public').doc('data').set({ logoUrl: '' }, {
+                            merge: true
+                        });
+                        setLogoUrl('');
+                        setLogoModal({ show: false, url: '' });
+                        showAlert("Logo Removed", "The logo has been removed.", "info");
+                    }
+                } catch (err) {
+                    showAlert("Error", err.message, "error");
+                }
+            };
+
+            // --- FILTERED PRODUCTS (memoized) ---
+            const filteredProducts = useMemo(() => {
+                return (products || []).filter((p) => {
+                    if (!p) return false;
+                    const title = (p.title || '').toLowerCase();
+                    const desc = (p.description || '').toLowerCase();
+                    const q = searchQuery.toLowerCase();
+                    const matchCategory = selectedCategory === 'all' || p.category === selectedCategory;
+                    const matchSearch = title.includes(q) || desc.includes(q);
+                    return matchCategory && matchSearch;
+                });
+            }, [products, selectedCategory, searchQuery]);
+
+            const isAdmin = currentUser &&
+                (currentUser.email === "hassan7534.j@gmail.com" || currentUser.email === "laibajavedziz@gmail.com");
+
+            // --- RENDER ---
+            return (
+                <div className="flex-grow flex flex-col justify-between animate-fadeIn">
+
+                    {/* HEADER */}
+                    <header className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-[#EAE3D5] px-4 py-3 transition-all">
+                        <div className="max-w-7xl mx-auto flex items-center justify-between">
+
+                            {/* Brand / Logo */}
+                            <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setCurrentView(
+                                'storefront')}>
+                                {logoUrl ? (
+                                    <img src={logoUrl} alt="crochetie Dino Logo" className="logo-img" />
+                                ) : (
+                                    <span className="font-brand text-4xl tracking-wide text-gray-900">crochetie Dino</span>
+                                )}
+                            </div>
+
+                            {/* Search */}
+                            <div className="hidden md:flex flex-grow max-w-md mx-8 relative">
+                                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#A19582]">
+                                    <i className="fa-solid fa-magnifying-glass"></i>
+                                </span>
+                                <input
+                                    type="text"
+                                    placeholder="Search keychains, plushies, home decor..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 border border-[#EAE3D5] rounded-full text-sm bg-[#FAF8F5] focus:ring-1 focus:ring-[#8E806A] focus:outline-none focus:border-[#8E806A]"
+                                />
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex items-center space-x-4">
+                                {isAdmin && (
+                                    <button
+                                        onClick={() => setCurrentView(currentView === 'admin' ? 'storefront' : 'admin')}
+                                        className="text-xs tracking-wider uppercase bg-[#8E806A] text-white px-4 py-2 rounded-full hover:bg-[#766955] transition font-medium"
+                                    >
+                                        {currentView === 'admin' ? 'Store' : 'Dashboard'}
+                                    </button>
+                                )}
+
+                                <button onClick={() => setCurrentView('cart')} className="relative p-2 text-gray-700 hover:text-gray-900">
+                                    <i className="fa-solid fa-bag-shopping text-xl"></i>
+                                    {cart.length > 0 && (
+                                        <span className="absolute -top-1 -right-1 bg-[#C78283] text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                                            {cart.reduce((a, b) => a + b.quantity, 0)}
+                                        </span>
+                                    )}
+                                </button>
+
+                                {currentUser ? (
+                                    <button onClick={handleLogout} className="text-gray-500 hover:text-red-600 p-2 text-sm" title="Sign Out">
+                                        <i className="fa-solid fa-right-from-bracket text-lg"></i>
+                                    </button>
+                                ) : (
+                                    <button onClick={() => setAuthModal({ ...authModal, show: true })} className="p-2 text-gray-700 hover:text-gray-900">
+                                        <i className="fa-regular fa-user text-xl"></i>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* MAIN */}
+                    <main className="flex-grow">
+
+                        {/* ===== STOREFRONT ===== */}
+                        {currentView === 'storefront' && (
+                            <div>
+                                {/* Hero */}
+                                <div className="bg-[#FAF7F2] py-24 px-4 border-b border-[#EAE3D5]">
+                                    <div className="max-w-4xl mx-auto text-center space-y-6">
+                                        {logoUrl ? (
+                                            <img src={logoUrl} alt="crochetie Dino Logo" className="mx-auto max-h-32 w-auto object-contain" />
+                                        ) : (
+                                            <h1 className="font-brand text-7xl md:text-8xl text-gray-900 select-none">crochetie Dino</h1>
+                                        )}
+                                        <p className="font-editorial italic text-2xl text-gray-600 max-w-xl mx-auto">
+                                            Elegant handmade custom crochet art curated carefully in Pakistan. Deliveries across the country.
+                                        </p>
+                                        <div className="flex justify-center space-x-4 pt-4">
+                                            <span className="text-xs bg-white border border-[#EAE3D5] text-[#8E806A] px-4 py-2 rounded-full uppercase tracking-widest font-medium">Standard PKR Delivery</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Filters */}
+                                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                                    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#EAE3D5] pb-6">
+                                        <div className="flex flex-wrap gap-2">
+                                            {['all', 'keychain', 'toy', 'wearable', 'home decor'].map((cat) => (
+                                                <button
+                                                    key={cat}
+                                                    onClick={() => setSelectedCategory(cat)}
+                                                    className={`px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-widest transition ${selectedCategory === cat ?
+                                                        'bg-[#8E806A] text-white shadow-sm' :
+                                                        'bg-white text-[#766955] hover:bg-[#FAF7F2] border border-[#EAE3D5]'
+                                                    }`}
+                                                >
+                                                    {cat === 'all' ? 'View All' : cat}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="w-full md:hidden relative">
+                                            <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-[#A19582]">
+                                                <i className="fa-solid fa-magnifying-glass"></i>
+                                            </span>
+                                            <input
+                                                type="text"
+                                                placeholder="Search crochet items..."
+                                                value={searchQuery}
+                                                onChange={(e) => setSearchQuery(e.target.value)}
+                                                className="w-full pl-10 pr-4 py-2 border border-[#EAE3D5] rounded-full text-sm focus:outline-none focus:border-[#8E806A] bg-white"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Products Grid */}
+                                    {filteredProducts.length === 0 ? (
+                                        <div className="text-center py-20">
+                                            <div className="w-20 h-20 mx-auto mb-4 rounded-full border border-[#E6DFD5] flex items-center justify-center bg-white text-gray-300">
+                                                <i className="fa-solid fa-scissors text-3xl"></i>
+                                            </div>
+                                            <h3 className="font-editorial text-3xl text-gray-800">No woven art available</h3>
+                                            <p className="text-gray-500 max-w-sm mx-auto mt-2 text-sm font-light">
+                                                The catalog is currently empty. Administrators will load new collection drops shortly.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 py-10 animate-fadeIn">
+                                            {filteredProducts.map((product) => (
+                                                <div key={product.id} className="group bg-white rounded-2xl overflow-hidden border border-[#F2EDE4] shadow-sm hover:shadow-md transition duration-300">
+                                                    <div className="h-72 w-full bg-[#FAF7F2] overflow-hidden relative">
+                                                        <img
+                                                            src={product.image}
+                                                            alt={product.title}
+                                                            className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                                                            onError={(e) => { e.target.src =
+                                                                    "https://images.unsplash.com/photo-1584992208738-3432be7bac4f?auto=format&fit=crop&w=600&q=80"; }}
+                                                        />
+                                                        <span className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm text-[#8E806A] text-[10px] tracking-widest uppercase font-bold px-3 py-1 rounded-full border border-[#EAE3D5]">
+                                                            {product.category}
+                                                        </span>
+                                                    </div>
+                                                    <div className="p-6 space-y-4">
+                                                        <div>
+                                                            <h3 className="font-editorial text-2xl text-gray-900 group-hover:text-[#8E806A] transition">
+                                                                {product.title}
+                                                            </h3>
+                                                            <p className="text-gray-500 text-xs mt-1 line-clamp-2 font-light">
+                                                                {product.description || 'No detailed description available.'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex items-center justify-between pt-2">
+                                                            <span className="text-lg font-medium text-gray-900">Rs. {Number(product.price).toLocaleString()}</span>
+                                                            <button
+                                                                onClick={() => addToCart(product)}
+                                                                className="bg-[#FAF7F2] hover:bg-[#8E806A] border border-[#E6DFD5] hover:border-[#8E806A] text-[#8E806A] hover:text-white px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider transition duration-300"
+                                                            >
+                                                                Add to Cart
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ===== CART ===== */}
+                        {currentView === 'cart' && (
+                            <div className="max-w-3xl mx-auto px-4 py-12">
+                                <h2 className="font-editorial text-4xl text-gray-900 mb-8 border-b border-[#EAE3D5] pb-4">Your Shopping Bag</h2>
+                                {cart.length === 0 ? (
+                                    <div className="text-center py-16 space-y-4">
+                                        <i className="fa-solid fa-bag-shopping text-5xl text-gray-300"></i>
+                                        <p className="text-gray-500 font-light">Your shopping bag is currently empty.</p>
+                                        <button onClick={() => setCurrentView('storefront')} className="bg-[#8E806A] text-white px-6 py-3 rounded-full text-xs tracking-widest uppercase font-semibold hover:bg-[#766955] transition">
+                                            Explore Handmades
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-8 animate-fadeIn">
+                                        <div className="divide-y divide-[#EAE3D5] bg-white rounded-2xl p-6 border border-[#EAE3D5]">
+                                            {cart.map((item) => (
+                                                <div key={item.id} className="py-6 flex flex-col md:flex-row gap-6 first:pt-0 last:pb-0">
+                                                    <img src={item.image} alt={item.title} className="w-20 h-20 rounded-lg object-cover bg-[#FAF7F2] border border-[#E6DFD5]" />
+                                                    <div className="flex-grow space-y-2">
+                                                        <div className="flex justify-between">
+                                                            <h4 className="font-editorial text-2xl text-gray-900">{item.title}</h4>
+                                                            <span className="font-semibold text-gray-900">Rs. {(Number(item.price) * item.quantity).toLocaleString()}</span>
+                                                        </div>
+                                                        <p className="text-xs text-gray-400">Rs. {Number(item.price).toLocaleString()} each</p>
+                                                        <div className="pt-2">
+                                                            <label className="block text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1">Add Personal Customizations (color, size, name):</label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="e.g. Red flower center, size 3 inches"
+                                                                value={item.customNote || ''}
+                                                                onChange={(e) => updateCustomNote(item.id, e.target.value)}
+                                                                className="w-full text-xs border border-[#EAE3D5] rounded-md px-3 py-1.5 focus:ring-1 focus:ring-[#8E806A] focus:outline-none"
+                                                            />
+                                                        </div>
+                                                        <div className="flex justify-between items-center pt-2">
+                                                            <div className="flex items-center space-x-2 border border-[#E6DFD5] rounded-full px-2 py-1">
+                                                                <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="text-gray-500 hover:text-black px-2 text-xs">
+                                                                    <i className="fa-solid fa-minus"></i>
+                                                                </button>
+                                                                <span className="text-sm font-medium px-2">{item.quantity}</span>
+                                                                <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="text-gray-500 hover:text-black px-2 text-xs">
+                                                                    <i className="fa-solid fa-plus"></i>
+                                                                </button>
+                                                            </div>
+                                                            <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700 text-xs font-semibold">
+                                                                Remove
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="bg-white rounded-2xl p-6 border border-[#EAE3D5] space-y-4">
+                                            <div className="flex justify-between items-center text-lg">
+                                                <span className="text-gray-600 font-light">Subtotal:</span>
+                                                <span className="font-semibold text-gray-900">Rs. {getCartTotal.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-xs text-gray-500 border-b border-[#EAE3D5] pb-4">
+                                                <span>Delivery (Pakistan Standard Delivery):</span>
+                                                <span className="uppercase text-[#8E806A] font-bold">Free Shipping</span>
+                                            </div>
+                                            <button onClick={() => setCheckoutModal({ ...checkoutModal, show: true })} className="w-full bg-[#8E806A] hover:bg-[#766955] text-white py-4 rounded-full text-xs font-bold uppercase tracking-widest transition">
+                                                Proceed to Checkout
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ===== ADMIN PANEL ===== */}
+                        {currentView === 'admin' && isAdmin && (
+                            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-12 animate-fadeIn">
+
+                                {/* Admin Heading */}
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[#EAE3D5] pb-6">
+                                    <div>
+                                        <h2 className="font-editorial text-4xl text-gray-900">Administrative Dashboard</h2>
+                                        <p className="text-xs text-gray-500 mt-1">Logged in as: <strong className="text-[#8E806A]">{currentUser.displayName || currentUser.email}</strong></p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-3">
+                                        <button onClick={() => setProductFormModal({ ...productFormModal, show: true })} className="bg-[#8E806A] hover:bg-[#766955] text-white px-5 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition">
+                                            Add New Product
+                                        </button>
+                                        <button onClick={() => setLogoModal({ show: true, url: logoUrl })} className="bg-white border border-[#EAE3D5] hover:border-[#8E806A] text-[#8E806A] px-5 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition">
+                                            Manage Logo
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Stats */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="bg-white rounded-2xl p-6 border border-[#EAE3D5]">
+                                        <h3 className="text-xs font-semibold uppercase tracking-widest text-[#8E806A]">Delivered Sales (PKR)</h3>
+                                        <p className="text-3xl font-light text-gray-900 mt-2">Rs. {totalSales.toLocaleString()}</p>
+                                    </div>
+                                    <div className="bg-white rounded-2xl p-6 border border-[#EAE3D5]">
+                                        <h3 className="text-xs font-semibold uppercase tracking-widest text-[#8E806A]">Total Orders</h3>
+                                        <p className="text-3xl font-light text-gray-900 mt-2">{orders.length}</p>
+                                    </div>
+                                    <div className="bg-white rounded-2xl p-6 border border-[#EAE3D5]">
+                                        <h3 className="text-xs font-semibold uppercase tracking-widest text-[#8E806A]">Catalog Items</h3>
+                                        <p className="text-3xl font-light text-gray-900 mt-2">{products.length}</p>
+                                    </div>
+                                </div>
+
+                                {/* Logo Preview Card */}
+                                <div className="bg-white rounded-2xl border border-[#EAE3D5] p-6 flex items-center justify-between flex-wrap gap-4">
+                                    <div>
+                                        <h3 className="font-editorial text-xl text-gray-900">Current Brand Logo</h3>
+                                        <p className="text-xs text-gray-400 mt-1">This logo appears in the header and hero section.</p>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        {logoUrl ? (
+                                            <img src={logoUrl} alt="Logo" className="h-12 w-auto object-contain border border-[#EAE3D5] rounded-md p-1 bg-white" />
+                                        ) : (
+                                            <span className="text-sm text-gray-400 italic">No logo set</span>
+                                        )}
+                                        <button onClick={() => setLogoModal({ show: true, url: logoUrl })} className="bg-[#FAF7F2] border border-[#EAE3D5] hover:border-[#8E806A] px-4 py-2 rounded-full text-xs font-medium transition">
+                                            {logoUrl ? 'Change' : 'Add Logo'}
+                                        </button>
+                                        {logoUrl && (
+                                            <button onClick={handleRemoveLogo} className="text-red-500 hover:text-red-700 text-xs font-medium">
+                                                Remove
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Product Inventory */}
+                                <div className="bg-white rounded-2xl border border-[#EAE3D5] overflow-hidden">
+                                    <div className="bg-[#FAF7F2] px-6 py-4 border-b border-[#EAE3D5]">
+                                        <h3 className="font-editorial text-2xl text-gray-900">Product Inventory ({products.length})</h3>
+                                    </div>
+                                    {products.length === 0 ? (
+                                        <div className="p-8 text-center text-gray-500 text-sm font-light">
+                                            No products loaded yet. Click "Add New Product" to publish the first item.
+                                        </div>
+                                    ) : (
+                                        <div className="divide-y divide-[#EAE3D5] max-h-96 overflow-y-auto">
+                                            {products.map((p) => (
+                                                <div key={p.id} className="p-6 flex items-center justify-between gap-4">
+                                                    <div className="flex items-center space-x-4">
+                                                        <img src={p.image} alt="" className="w-12 h-12 rounded object-cover border border-[#EAE3D5]" />
+                                                        <div>
+                                                            <h4 className="font-semibold text-gray-900 text-sm">{p.title}</h4>
+                                                            <p className="text-xs text-[#8E806A] font-medium">Rs. {Number(p.price).toLocaleString()} | {p.category}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center space-x-2">
+                                                        <button onClick={() => setProductFormModal({
+                                                            show: true,
+                                                            id: p.id,
+                                                            title: p.title,
+                                                            description: p.description || '',
+                                                            price: p.price,
+                                                            category: p.category,
+                                                            image: p.image || ''
+                                                        })} className="text-gray-500 hover:text-blue-600 p-2 text-sm" title="Edit">
+                                                            <i className="fa-solid fa-pen-to-square"></i>
+                                                        </button>
+                                                        <button onClick={() => handleDeleteProduct(p.id)} className="text-gray-500 hover:text-red-600 p-2 text-sm" title="Delete">
+                                                            <i className="fa-solid fa-trash-can"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Orders Pipeline */}
+                                <div className="bg-white rounded-2xl border border-[#EAE3D5] overflow-hidden">
+                                    <div className="bg-[#FAF7F2] px-6 py-4 border-b border-[#EAE3D5]">
+                                        <h3 className="font-editorial text-2xl text-gray-900">Order Pipeline ({orders.length})</h3>
+                                    </div>
+                                    {orders.length === 0 ? (
+                                        <div className="p-8 text-center text-gray-500 text-sm font-light">
+                                            No orders have been submitted yet.
+                                        </div>
+                                    ) : (
+                                        <div className="divide-y divide-[#EAE3D5] overflow-x-auto">
+                                            {orders.map((o) => (
+                                                <div key={o.id} className="p-6 min-w-[700px]">
+                                                    <div className="flex justify-between items-start mb-4">
+                                                        <div>
+                                                            <div className="flex items-center space-x-2">
+                                                                <span className="font-mono text-sm font-bold text-gray-900">{o.id}</span>
+                                                                <span className={`px-3 py-1 text-[10px] tracking-widest font-bold uppercase rounded-full ${o.status === 'pending' ? 'bg-[#FAF7F2] text-[#8E806A] border border-[#E6DFD5]' :
+                                                                        o.status === 'processing' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                                                        o.status === 'shipped' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                                                                        'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                                                    }`}>
+                                                                    {o.status}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-xs text-gray-500 mt-1">{o.date} at {o.time}</p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-sm font-bold text-gray-900">Rs. {Number(o.total || 0).toLocaleString()}</p>
+                                                            <p className="text-xs text-emerald-600">Free Shipping</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-6 bg-[#FAF8F5] p-4 rounded-xl border border-[#EAE3D5] text-xs">
+                                                        <div>
+                                                            <h5 className="font-semibold text-gray-700 uppercase tracking-wider text-[10px] mb-1">Customer Details</h5>
+                                                            <p className="font-medium text-gray-900">{o.name}</p>
+                                                            <p className="text-gray-600 mt-1">{o.phone}</p>
+                                                            <p className="text-gray-600">{o.address}, {o.city}, Pakistan</p>
+                                                            {o.notes && <p className="text-gray-500 italic mt-2">"{o.notes}"</p>}
+                                                        </div>
+                                                        <div>
+                                                            <h5 className="font-semibold text-gray-700 uppercase tracking-wider text-[10px] mb-1">Items</h5>
+                                                            <ul className="space-y-1">
+                                                                {o.items && o.items.map((item, idx) => (
+                                                                    <li key={idx} className="text-gray-900 font-medium">
+                                                                        {item.title} (x{item.quantity})
+                                                                        {item.customNote && <span className="block text-[10px] text-[#8E806A] italic ml-2">↳ {item.customNote}</span>}
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    </div>
+
+                                                    {o.status !== 'delivered' && (
+                                                        <div className="mt-4 flex justify-end">
+                                                            <button onClick={() => handleUpdateOrderStatus(o.id, o.status)} className="bg-white border border-[#EAE3D5] text-[#8E806A] hover:bg-[#8E806A] hover:text-white px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider transition">
+                                                                Advance to: {
+                                                                    o.status === 'pending' ? 'Processing' :
+                                                                    o.status === 'processing' ? 'Shipped' : 'Delivered'
+                                                                }
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+                    {/* FOOTER */}
+                    <footer className="bg-white border-t border-[#EAE3D5] py-12 mt-12">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-4 animate-fadeIn">
+                            <div className="flex justify-center items-center">
+                                {logoUrl ? (
+                                    <img src={logoUrl} alt="crochetie Dino Logo" className="h-10 w-auto object-contain" />
+                                ) : (
+                                    <span className="font-brand text-3xl text-gray-900">crochetie Dino</span>
+                                )}
+                            </div>
+                            <p className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Handmade with love in Pakistan • Free Countrywide Delivery</p>
+                            <p className="text-xs text-gray-400 font-light">&copy; 2026 crochetie Dino. All rights reserved.</p>
+                        </div>
+                    </footer>
+
+                    {/* ===== ALERT MODAL ===== */}
+                    {alertModal.show && (
+                        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+                            <div className="bg-white rounded-2xl max-w-sm w-full p-6 border border-[#EAE3D5] text-center space-y-4 shadow-xl">
+                                <div className={`w-12 h-12 rounded-full mx-auto flex items-center justify-center ${alertModal.type === 'success' ? 'bg-emerald-50 text-emerald-600' :
+                                        alertModal.type === 'error' ? 'bg-red-50 text-red-600' :
+                                        'bg-blue-50 text-blue-600'
+                                    }`}>
+                                    <i className={`text-xl fa-solid ${alertModal.type === 'success' ? 'fa-check' :
+                                            alertModal.type === 'error' ? 'fa-triangle-exclamation' :
+                                            'fa-info'
+                                        }`}></i>
+                                </div>
+                                <h4 className="font-editorial text-2xl text-gray-950">{alertModal.title}</h4>
+                                <p className="text-xs text-gray-600 leading-relaxed">{alertModal.message}</p>
+                                <button onClick={closeAlert} className="bg-gray-950 text-white w-full py-2.5 rounded-full text-xs font-semibold tracking-wider uppercase hover:bg-gray-800 transition">
+                                    Dismiss
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ===== AUTH MODAL ===== */}
+                    {authModal.show && (
+                        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+                            <div className="bg-white rounded-2xl max-w-md w-full p-8 border border-[#EAE3D5] shadow-xl space-y-6">
+                                <div className="text-center">
+                                    <h3 className="font-editorial text-3xl text-gray-950">Join crochetie Dino</h3>
+                                    <p className="text-xs text-gray-500 font-light mt-1">Unlock seamless checkout and customization requests</p>
+                                </div>
+                                <form onSubmit={handleAdminLogin} className="space-y-4">
+                                    <div>
+                                        <label className="block text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Email</label>
+                                        <input type="email" required value={authModal.email} onChange={(e) => setAuthModal({
+                                            ...authModal, email: e.target.value })} placeholder="you@domain.com" className="w-full text-sm border border-[#EAE3D5] rounded-xl px-4 py-3 bg-[#FAF8F5] focus:outline-none focus:ring-1 focus:ring-[#8E806A]" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Password</label>
+                                        <input type="password" required value={authModal.password} onChange={(e) => setAuthModal({
+                                            ...authModal, password: e.target.value })} placeholder="••••••••" className="w-full text-sm border border-[#EAE3D5] rounded-xl px-4 py-3 bg-[#FAF8F5] focus:outline-none focus:ring-1 focus:ring-[#8E806A]" />
+                                    </div>
+                                    <button type="submit" className="w-full bg-[#8E806A] hover:bg-[#766955] text-white py-3.5 rounded-full text-xs font-bold uppercase tracking-widest transition">
+                                        {authModal.isLogin ? 'Sign In' : 'Create Account'}
+                                    </button>
+                                </form>
+
+                                <div className="relative flex py-2 items-center">
+                                    <div className="flex-grow border-t border-[#EAE3D5]"></div>
+                                    <span className="flex-shrink mx-4 text-[10px] uppercase tracking-wider text-gray-400 font-bold">Or</span>
+                                    <div className="flex-grow border-t border-[#EAE3D5]"></div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button onClick={handleGoogleSignIn} className="border border-[#EAE3D5] hover:bg-gray-50 py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2">
+                                        <i className="fa-brands fa-google text-red-500"></i> Google
+                                    </button>
+                                    <button onClick={() => showAlert("Social Access", "Microsoft sign-in is available.", "info")} className="border border-[#EAE3D5] hover:bg-gray-50 py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2">
+                                        <i className="fa-brands fa-microsoft text-blue-500"></i> Microsoft
+                                    </button>
+                                    <button onClick={() => showAlert("Social Access", "Apple Auth is available.", "info")} className="border border-[#EAE3D5] hover:bg-gray-50 py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2">
+                                        <i className="fa-brands fa-apple text-gray-900"></i> Apple
+                                    </button>
+                                </div>
+
+                                <p className="text-center text-xs text-gray-500 pt-2">
+                                    {authModal.isLogin ? "Don't have an account?" : "Already have an account?"}
+                                    <button type="button" onClick={() => setAuthModal({ ...authModal, isLogin: !authModal
+                                            .isLogin })} className="text-[#8E806A] hover:underline font-semibold ml-1">
+                                        {authModal.isLogin ? 'Sign Up' : 'Log In'}
+                                    </button>
+                                </p>
+                                <div className="text-center">
+                                    <button type="button" onClick={() => setAuthModal({ ...authModal, show: false })} className="text-gray-400 hover:text-gray-600 text-xs">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ===== CHECKOUT MODAL ===== */}
+                    {checkoutModal.show && (
+                        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+                            <div className="bg-white rounded-2xl max-w-md w-full p-8 border border-[#EAE3D5] shadow-xl space-y-6 my-8">
+                                <div className="text-center">
+                                    <h3 className="font-editorial text-3xl text-gray-950">Pakistan Delivery Setup</h3>
+                                    <p className="text-xs text-gray-500 font-light mt-1">Verify your contact details for logistics</p>
+                                </div>
+                                <form onSubmit={handleVerifyAndSubmitOrder} className="space-y-4">
+                                    <div>
+                                        <label className="block text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Full Name</label>
+                                        <input type="text" required value={checkoutModal.name} onChange={(e) => setCheckoutModal(
+                                            { ...checkoutModal, name: e.target.value })} placeholder="Muhammad Ali" className="w-full text-sm border border-[#EAE3D5] rounded-xl px-4 py-3 bg-[#FAF8F5] focus:outline-none focus:ring-1 focus:ring-[#8E806A]" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1">City</label>
+                                        <select value={checkoutModal.city} onChange={(e) => setCheckoutModal({ ...checkoutModal,
+                                            city: e.target.value })} className="w-full text-sm border border-[#EAE3D5] rounded-xl px-4 py-3 bg-[#FAF8F5] focus:outline-none focus:ring-1 focus:ring-[#8E806A]">
+                                            <option value="Karachi">Karachi (Sindh)</option>
+                                            <option value="Lahore">Lahore (Punjab)</option>
+                                            <option value="Islamabad">Islamabad (Capital)</option>
+                                            <option value="Rawalpindi">Rawalpindi (Punjab)</option>
+                                            <option value="Peshawar">Peshawar (KPK)</option>
+                                            <option value="Quetta">Quetta (Balochistan)</option>
+                                            <option value="Multan">Multan (Punjab)</option>
+                                            <option value="Faisalabad">Faisalabad (Punjab)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Street Address</label>
+                                        <textarea required rows="2" value={checkoutModal.address} onChange={(e) =>
+                                            setCheckoutModal({ ...checkoutModal, address: e.target.value })} placeholder="House No, Block, Area" className="w-full text-sm border border-[#EAE3D5] rounded-xl px-4 py-3 bg-[#FAF8F5] focus:outline-none focus:ring-1 focus:ring-[#8E806A]"></textarea>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Notes (Optional)</label>
+                                        <input type="text" value={checkoutModal.notes} onChange={(e) => setCheckoutModal({
+                                            ...checkoutModal, notes: e.target.value })} placeholder="Call before arriving, gift wrap, etc." className="w-full text-sm border border-[#EAE3D5] rounded-xl px-4 py-3 bg-[#FAF8F5] focus:outline-none focus:ring-1 focus:ring-[#8E806A]" />
+                                    </div>
+
+                                    <div className="border-t border-[#EAE3D5] pt-4 space-y-4">
+                                        <div>
+                                            <label className="block text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Phone (for OTP)</label>
+                                            <div className="flex gap-2">
+                                                <input type="tel" required value={checkoutModal.phone} onChange={(e) =>
+                                                    setCheckoutModal({ ...checkoutModal, phone: e.target.value })} placeholder="03211234567" className="flex-grow text-sm border border-[#EAE3D5] rounded-xl px-4 py-3 bg-[#FAF8F5] focus:outline-none focus:ring-1 focus:ring-[#8E806A]" />
+                                                <button type="button" onClick={handleSendVerificationCode} className="bg-[#8E806A] text-white px-4 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-[#766955] transition">
+                                                    Send Code
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {checkoutModal.isCodeSent && (
+                                            <div>
+                                                <label className="block text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1">4-Digit Code</label>
+                                                <input type="text" required maxLength="4" value={checkoutModal.enteredCode}
+                                                    onChange={(e) => setCheckoutModal({ ...checkoutModal, enteredCode: e
+                                                            .target.value })} placeholder="Enter OTP" className="w-full text-center text-lg font-mono tracking-widest border border-[#EAE3D5] rounded-xl px-4 py-2.5 bg-[#FAF8F5] focus:outline-none" />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <button type="submit" disabled={!checkoutModal.isCodeSent} className={`w-full py-4 rounded-full text-xs font-bold uppercase tracking-widest transition ${checkoutModal.isCodeSent ?
+                                            'bg-emerald-600 hover:bg-emerald-700 text-white shadow' :
+                                            'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                        }`}>
+                                        Complete Order
+                                    </button>
+                                </form>
+                                <div className="text-center">
+                                    <button type="button" onClick={() => setCheckoutModal({ ...checkoutModal, show: false })}
+                                    className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ===== PRODUCT FORM MODAL ===== */}
+                    {productFormModal.show && (
+                        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+                            <div className="bg-white rounded-2xl max-w-md w-full p-8 border border-[#EAE3D5] shadow-xl space-y-6 my-8">
+                                <h3 className="font-editorial text-3xl text-gray-950 text-center">
+                                    {productFormModal.id ? 'Edit Product' : 'New Crochet Masterpiece'}
+                                </h3>
+                                <form onSubmit={handleSaveProduct} className="space-y-4">
+                                    <div>
+                                        <label className="block text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Title</label>
+                                        <input type="text" required value={productFormModal.title} onChange={(e) =>
+                                            setProductFormModal({ ...productFormModal, title: e.target.value })} placeholder="e.g. Tiny Green Dino Keychain" className="w-full text-sm border border-[#EAE3D5] rounded-xl px-4 py-3 bg-[#FAF8F5] focus:outline-none focus:ring-1 focus:ring-[#8E806A]" />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Price (PKR)</label>
+                                            <input type="number" required value={productFormModal.price} onChange={(e) =>
+                                                setProductFormModal({ ...productFormModal, price: e.target.value })} placeholder="1500" className="w-full text-sm border border-[#EAE3D5] rounded-xl px-4 py-3 bg-[#FAF8F5] focus:outline-none focus:ring-1 focus:ring-[#8E806A]" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Category</label>
+                                            <select value={productFormModal.category} onChange={(e) => setProductFormModal({
+                                                ...productFormModal, category: e.target.value })} className="w-full text-sm border border-[#EAE3D5] rounded-xl px-4 py-3 bg-[#FAF8F5] focus:outline-none focus:ring-1 focus:ring-[#8E806A]">
+                                                <option value="keychain">Keychain</option>
+                                                <option value="toy">Plushie / Toy</option>
+                                                <option value="wearable">Wearable</option>
+                                                <option value="home decor">Home Decor</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Image URL</label>
+                                        <input type="text" value={productFormModal.image} onChange={(e) => setProductFormModal(
+                                            { ...productFormModal, image: e.target.value })} placeholder="https://images.unsplash.com/..." className="w-full text-sm border border-[#EAE3D5] rounded-xl px-4 py-3 bg-[#FAF8F5] focus:outline-none focus:ring-1 focus:ring-[#8E806A]" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Description</label>
+                                        <textarea rows="3" value={productFormModal.description} onChange={(e) =>
+                                            setProductFormModal({ ...productFormModal, description: e.target.value })} placeholder="Describe wool yarn, styling, sizes..." className="w-full text-sm border border-[#EAE3D5] rounded-xl px-4 py-3 bg-[#FAF8F5] focus:outline-none focus:ring-1 focus:ring-[#8E806A]"></textarea>
+                                    </div>
+                                    <button type="submit" className="w-full bg-[#8E806A] hover:bg-[#766955] text-white py-3.5 rounded-full text-xs font-bold uppercase tracking-widest transition shadow-sm">
+                                        Publish Product
+                                    </button>
+                                </form>
+                                <div className="text-center">
+                                    <button type="button" onClick={() => setProductFormModal({ ...productFormModal, show: false })} className="text-gray-400 hover:text-gray-600 text-xs">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ===== LOGO MANAGEMENT MODAL ===== */}
+                    {logoModal.show && (
+                        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+                            <div className="bg-white rounded-2xl max-w-md w-full p-8 border border-[#EAE3D5] shadow-xl space-y-6">
+                                <div className="text-center">
+                                    <h3 className="font-editorial text-3xl text-gray-950">Brand Logo</h3>
+                                    <p className="text-xs text-gray-500 font-light mt-1">Enter the URL of your brand logo image</p>
+                                </div>
+                                <form onSubmit={handleSaveLogo} className="space-y-4">
+                                    <div>
+                                        <label className="block text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Logo Image URL</label>
+                                        <input type="url" required value={logoModal.url} onChange={(e) => setLogoModal({
+                                            ...logoModal, url: e.target.value })} placeholder="https://example.com/logo.png" className="w-full text-sm border border-[#EAE3D5] rounded-xl px-4 py-3 bg-[#FAF8F5] focus:outline-none focus:ring-1 focus:ring-[#8E806A]" />
+                                    </div>
+                                    {logoModal.url && (
+                                        <div className="border border-[#EAE3D5] rounded-xl p-4 bg-[#FAF8F5] text-center">
+                                            <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-2">Preview</p>
+                                            <img src={logoModal.url} alt="Logo preview" className="max-h-20 mx-auto object-contain" onError={(e) => { e.target.style.display =
+                                                    'none'; }} />
+                                        </div>
+                                    )}
+                                    <button type="submit" className="w-full bg-[#8E806A] hover:bg-[#766955] text-white py-3.5 rounded-full text-xs font-bold uppercase tracking-widest transition shadow-sm">
+                                        Save Logo
+                                    </button>
+                                </form>
+                                <div className="flex justify-center gap-4">
+                                    <button type="button" onClick={() => setLogoModal({ show: false, url: '' })} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
+                                    {logoUrl && (
+                                        <button type="button" onClick={() => { handleRemoveLogo();
+                                            setLogoModal({ show: false, url: '' }); }} className="text-red-500 hover:text-red-700 text-xs font-medium">
+                                            Remove Logo
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
